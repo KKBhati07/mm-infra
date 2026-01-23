@@ -1,0 +1,140 @@
+# Put it in the parent of all apps and run
+services:
+  frontend:
+    build:
+      context: ../MM                         # Path to frontend source code
+      dockerfile: DOCKERFILE.local          # Dockerfile to use for frontend
+    container_name: mm-frontend             # Name of the frontend container
+    ports:
+      - "4200:4200"                         # Map host port 4200 to container port 4200
+    volumes:
+      - ../MM:/app:cached                    # Mount local frontend code into container
+      - ../MM/certs:/certs:ro                # readonly, container cannot write into this folder
+      - mm_node_modules:/app/node_modules   # Persist node_modules as volume (mapping the container to volume)
+    environment:
+      - CHOKIDAR_USEPOLLING=true          # Enable polling for file changes (fixes issues on some hosts)
+      - PORT=4200
+      - APP_NAME=marketmate
+      # command: npm start                  # Optional custom start command (currently commented)
+
+  admin:
+    build:
+      context: ../MM                        # Path to frontend source code
+      dockerfile: DOCKERFILE.local         # Dockerfile to use for frontend
+    container_name: mm-admin               # Name of the frontend container
+    ports:
+      - "4300:4201"                       # Map host port 4200 to container port 4200
+    volumes:
+      - ../MM:/app:cached                  # Mount local frontend code into container
+      - ../MM/certs:/certs:ro
+      - mm_admin_node_modules:/app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true          # Enable polling for file changes (fixes issues on some hosts)
+      - PORT=4201
+      - APP_NAME=mm-admin-portal
+    # command: npm start                  # Optional custom start command (currently commented)
+
+  chat-engine:
+    build:
+      context: ../mm-chat-service           # Path to frontend source code
+      dockerfile: DOCKERFILE.local         # Dockerfile to use for frontend
+    container_name: chat-engine            # Name of the frontend container
+    ports:
+      - "3100:3000"                       # Map host port 4200 to container port 4200
+    volumes:
+      - ../mm-chat-service:/app:cached     # Mount local frontend code into container
+      #      - ./MM/certs:/certs:ro
+      - chat_engine_node_modules:/app/node_modules
+    env_file:
+      - ../mm-chat-service/src/env/.env
+    environment:
+      - NODE_ENV=development             # Enable polling for file changes (fixes issues on some hosts)
+    # command: npm start                  # Optional custom start command (currently commented)
+
+  backend:
+    build:
+      context: ../SpringMate/SpringMate    # Path to backend (Spring Boot) source code
+      dockerfile: DOCKERFILE.local          # Dockerfile to use for backend
+    container_name: local-backend         # Name of the backend container
+    ports:
+      - "8080:8080"                       # Map host port 8080 to container port 8080
+    volumes:
+      - ../SpringMate/SpringMate:/app  # Mount local backend code
+      - ${HOME}/.m2:/root/.m2         # Mount local Maven repo to cache dependencies
+    env_file:
+      - ../SpringMate/SpringMate/src/main/java/com/example/SpringMate/env/.env
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+    depends_on:
+      - postgres                          # Wait for postgres service before starting
+      - redis                          # Wait for redis service before starting
+
+  postgres:
+    image: postgres:15                    # Use PostgreSQL version 15 image
+    container_name: local-postgres        # Name of the PostgreSQL container
+    restart: always                       # Always restart the container if it stops
+    environment:
+      POSTGRES_USER: postgres             # Set DB username
+      POSTGRES_PASSWORD: password         # Set DB password
+      POSTGRES_DB: marketmate             # Default DB (also created explicitly in init script for production consistency)
+    volumes:
+      - pgdata:/var/lib/postgresql/data  # Persist PostgreSQL data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro  # Initialize all databases
+    ports:
+      - "5432:5432"                       # Map host port 5432 to container port 5432
+    pids_limit: 512
+
+  redis:
+    image: redis:7-alpine
+    container_name: local-redis
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.52.0        # Prometheus server for scraping and storing metrics
+    container_name: local-prometheus      # Name of the Prometheus container
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro  # Prometheus scrape configuration
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"  # Explicit config file location
+    ports:
+      - "9090:9090"                       # Expose Prometheus UI on host
+    depends_on:
+      - backend                           # Ensure backend starts before Prometheus scrapes
+
+  grafana:
+    image: grafana/grafana:10.4.2         # Grafana for visualizing Prometheus metrics
+    container_name: local-grafana         # Name of the Grafana container
+    ports:
+      - "3005:3000"                       # Expose Grafana UI on host port 3005
+    volumes:
+      - grafana_data:/var/lib/grafana     # Persist Grafana state (users, dashboards, settings)
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro  # Auto-provision datasources & dashboards
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro  # Mounted Grafana dashboards (JSON)
+    environment:
+      GF_SECURITY_ADMIN_USER: admin        # Default Grafana admin username      
+      GF_SECURITY_ADMIN_PASSWORD: admin   # Default Grafana admin password (local only)
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/springmate-overview.json  # Sets the default home dashboard that loads on Grafana startup
+      GF_FEATURE_TOGGLES_ENABLE: hideExplore,hideDashboards  # Hides Explore and Dashboards menu items from the Grafana UI
+      GF_NEWS_ENABLED: "false"             # Disables Grafana news feed in the UI
+      GF_HELP_ENABLED: "false"             # Disables help menu and documentation links in Grafana
+      GF_ANALYTICS_REPORTING_ENABLED: "false"  # Disables anonymous usage analytics reporting to Grafana Labs
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"  # Disables automatic checking for Grafana updates
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DEFAULT_THEME: dark
+    depends_on:
+      - prometheus                        # Ensure Prometheus is available before Grafana starts
+volumes:
+  pgdata:                                 # Named volume for PostgreSQL data
+  mm_node_modules:                        # Named volume for frontend node_modules
+  mm_admin_node_modules:                  # Named volume for admin frontend node_modules
+  chat_engine_node_modules:               # Named volume for chat engine node_modules
+  redis_data:                             # Named volume for redis persistance
+  grafana_data:                           # Named volume for grafana persistance
+
+

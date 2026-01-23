@@ -1,0 +1,10 @@
+# Runtime data
+grafana/data/
+prometheus/data/
+
+# Secrets
+.env
+*.env
+
+# OS
+.DS_Store

@@ -1,0 +1,11 @@
+apiVersion: 1  # Specifies the API version for Grafana provisioning configuration
+
+providers:  # Defines the list of dashboard providers that will load dashboards automatically
+  - name: "springmate-dashboards"     # Sets the unique name identifier for this dashboard provider
+    orgId: 1                          # Specifies the organization ID where dashboards will be provisioned (1 is the default org)
+    folder: "SpringMate"              # Defines the folder name in Grafana where these dashboards will be organized
+    type: file                        # Indicates that dashboards will be loaded from file system files
+    disableDeletion: true             # Prevents users from deleting dashboards provisioned by this provider
+    editable: false                   # Makes dashboards read-only, preventing users from editing them in the UI
+    options:                          # Configuration options for the file-based dashboard provider
+      path: /var/lib/grafana/dashboards  # Specifies the directory path inside the Grafana container where dashboard JSON files are located
