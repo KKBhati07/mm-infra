@@ -11,10 +11,14 @@ services:
       - ../MM:/app:cached                    # Mount local frontend code into container
       - ../MM/certs:/certs:ro                # readonly, container cannot write into this folder
       - mm_node_modules:/app/node_modules   # Persist node_modules as volume (mapping the container to volume)
+      - /app/.nx
     environment:
       - CHOKIDAR_USEPOLLING=true          # Enable polling for file changes (fixes issues on some hosts)
       - PORT=4200
+      - NX_CACHE_DIRECTORY=/tmp/nx-cache/frontend # Redirect cache
+      - NX_WORKSPACE_DATA_DIRECTORY=/tmp/nx-marketmate
       - APP_NAME=marketmate
+      - NX_DAEMON=false
       # command: npm start                  # Optional custom start command (currently commented)
 
   admin:
@@ -26,11 +30,15 @@ services:
       - "4300:4201"                       # Map host port 4200 to container port 4200
     volumes:
       - ../MM:/app:cached                  # Mount local frontend code into container
-      - ../MM/certs:/certs:ro
+      - /app/.nx
+      - ../MM/certs:/certs:ro 
       - mm_admin_node_modules:/app/node_modules
     environment:
+      - NX_DAEMON=false
       - CHOKIDAR_USEPOLLING=true          # Enable polling for file changes (fixes issues on some hosts)
       - PORT=4201
+      - NX_CACHE_DIRECTORY=/tmp/nx-cache/mm-admin-portal # Redirect cache
+      - NX_WORKSPACE_DATA_DIRECTORY=/tmp/nx-mm-admin-portal
       - APP_NAME=mm-admin-portal
     # command: npm start                  # Optional custom start command (currently commented)
 
@@ -133,6 +141,7 @@ volumes:
   pgdata:                                 # Named volume for PostgreSQL data
   mm_node_modules:                        # Named volume for frontend node_modules
   mm_admin_node_modules:                  # Named volume for admin frontend node_modules
+  mm_node_modules_cache:                  # Anonymous volume, unmounts the cache from the host
   chat_engine_node_modules:               # Named volume for chat engine node_modules
   redis_data:                             # Named volume for redis persistance
   grafana_data:                           # Named volume for grafana persistance
