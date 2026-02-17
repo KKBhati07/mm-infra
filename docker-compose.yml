@@ -44,19 +44,22 @@ services:
 
   chat-engine:
     build:
-      context: ../mm-chat-service           # Path to frontend source code
-      dockerfile: DOCKERFILE.local         # Dockerfile to use for frontend
-    container_name: chat-engine            # Name of the frontend container
+      context: ../mm-chat-service           # Path to chat service source code
+      dockerfile: DOCKERFILE.local         # Dockerfile to use for chat service
+    container_name: chat-engine            # Name of the chat service container
     ports:
-      - "3100:3000"                       # Map host port 4200 to container port 4200
+      - "4400:3000"                       # Map host port 4400 to container port 3000
     volumes:
-      - ../mm-chat-service:/app:cached     # Mount local frontend code into container
+      - ../mm-chat-service/certs:/certs:ro
+      - ../mm-chat-service:/app:cached     # Mount local chat service code into container
       #      - ./MM/certs:/certs:ro
       - chat_engine_node_modules:/app/node_modules
     env_file:
-      - ../mm-chat-service/src/env/.env
+      - ../mm-chat-service/src/env/.env 
     environment:
       - NODE_ENV=development             # Enable polling for file changes (fixes issues on some hosts)
+      - PORT=3000                        # Port inside container
+      - ALLOWED_APP_ORIGINS=https://marketmate.local:4200,https://admin.marketmate.local:4300,http://localhost:4200,http://localhost:4300
     # command: npm start                  # Optional custom start command (currently commented)
 
   backend:
