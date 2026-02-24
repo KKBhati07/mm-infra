@@ -85,7 +85,7 @@ The Container diagram shows the high-level technical building blocks of the Mark
 │  │  ┌──────────────┐              ┌──────────────┐          │   │
 │  │  │   Public     │              │    Admin     │          │   │
 │  │  │   Frontend   │              │    Portal    │          │   │
-│  │  │  (Angular)   │              │  (Angular)  │           │   │
+│  │  │  (Angular)   │              │  (Angular)   │          │   │
 │  │  └──────────────┘              └──────────────┘          │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                           │                                     │
@@ -141,6 +141,22 @@ The Container diagram shows the high-level technical building blocks of the Mark
 7. **AWS S3**: File storage for images
 8. **Prometheus**: Metrics collection and monitoring
 9. **Grafana**: Metrics visualization and dashboards
+
+---
+
+## Local Development (Docker Compose)
+
+The `mm-infra/docker-compose.yml` stack runs the platform locally with separate containers for each service.
+
+### Services (current)
+- **Public frontend**: `mm-frontend` (Angular) on `https://marketmate.local:4200`
+- **Admin portal**: `mm-admin` (Angular) on `https://admin.marketmate.local:4300`
+- **SpringMate backend**: `local-backend` (Spring Boot) on `https://localhost:8080` (local TLS/self-signed)
+- **Chat service**: `chat-engine` (NestJS) on `https://localhost:4400`
+- **PostgreSQL 15**: `local-postgres` on `localhost:5432` (initializes `marketmate` + `mm_chat`)
+- **Redis 7**: `local-redis` on `localhost:6379`
+- **Prometheus**: `local-prometheus` on `localhost:9090` (scrapes SpringMate `/actuator/prometheus` over HTTPS with basic auth)
+- **Grafana**: `local-grafana` on `localhost:3005` (pre-provisioned Prometheus datasource + dashboards)
 
 ---
 
@@ -205,7 +221,7 @@ User → Frontend → SpringMate Backend → ListingService → ListingRepositor
 
 ### 3. Real-time Chat Flow
 ```
-User → Frontend → Chat Service (WebSocket) → Redis (Session Validation)
+User → Frontend → Chat Service (WebSocket) → SpringMate (internal session resolve) → Redis/PostgreSQL (session validation)
                                     ↓
                               PostgreSQL (mm_chat DB - Message Storage)
                                     ↓
@@ -227,14 +243,19 @@ SpringMate Backend → Prometheus (Metrics Scraping)
 
 ### Authentication
 - **JWT Tokens**: Stored in httpOnly cookies
-- **Session Management**: Redis-backed sessions
+- **Session Management**: Sessions stored in PostgreSQL with Redis used as a session-validation cache
 - **OTP Verification**: Email-based OTP for login
-- **Chat Authentication**: Validates JWT from SpringMate backend
+- **Chat Authentication**: Validates sessions by calling SpringMate’s internal session resolve API (no tokens passed via URL params)
 
 ### Authorization
 - **Role-Based Access Control (RBAC)**: ADMIN, USER roles
 - **Method-Level Security**: `@PreAuthorize` annotations
 - **Resource-Level Security**: User can only modify own resources
+
+### Request/Edge Protections (implemented)
+- **Rate limiting**: request throttling filter applied before controllers
+- **Request correlation**: request-id filter for tracing logs/requests across services
+- **Cookie security**: `auth_token` issued as an httpOnly cookie (with domain/path/secure controlled by app config)
 
 ### Security Headers
 - HSTS (HTTP Strict Transport Security)
@@ -262,27 +283,3 @@ SpringMate Backend → Prometheus (Metrics Scraping)
 ### Pagination
 - **Offset-based**: For most endpoints
 - **Cursor-based**: For large datasets (recommended for future)
-
----
-
-## Notes
-
-- This architecture supports horizontal scaling
-- Redis is used for caching, session storage, and chat session management
-- Database connections are pooled (HikariCP)
-- All external service calls are wrapped with Resilience4j (circuit breakers, retries)
-- Rate limiting is applied at the filter level
-- Chat service authenticates via SpringMate backend JWT validation
-- **Database Separation**: Two separate databases (`marketmate` for backend, `mm_chat` for chat service) for better isolation and scalability
-- **Monitoring**: Prometheus scrapes metrics from Spring Boot Actuator endpoints, and Grafana provides pre-configured dashboards
-- **Infrastructure as Code**: All infrastructure configurations (PostgreSQL init scripts, Redis config, Prometheus, Grafana) are version-controlled and production-ready
-
----
-
-## Future Enhancements
-
-1. **Microservices Migration**: Further split services if needed
-2. **Message Queue**: Add Kafka/RabbitMQ for async processing
-3. **Search Service**: Dedicated Elasticsearch for full-text search
-4. **CDN Integration**: CloudFront for static assets
-5. **API Gateway**: Centralized routing and rate limiting
