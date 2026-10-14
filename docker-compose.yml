@@ -2,14 +2,14 @@
 services:
   frontend:
     build:
-      context: ../MM                         # Path to frontend source code
+      context: ../TheMarketMate                         # Path to frontend source code
       dockerfile: DOCKERFILE.local          # Dockerfile to use for frontend
     container_name: mm-frontend             # Name of the frontend container
     ports:
       - "4200:4200"                         # Map host port 4200 to container port 4200
     volumes:
-      - ../MM:/app:cached                    # Mount local frontend code into container
-      - ../MM/certs:/certs:ro                # readonly, container cannot write into this folder
+      - ../TheMarketMate:/app:cached                    # Mount local frontend code into container
+      - ../TheMarketMate/certs:/certs:ro                # readonly, container cannot write into this folder
       - mm_node_modules:/app/node_modules   # Persist node_modules as volume (mapping the container to volume)
       - /app/.nx
     environment:
@@ -23,15 +23,15 @@ services:
 
   admin:
     build:
-      context: ../MM                        # Path to frontend source code
+      context: ../TheMarketMate                        # Path to frontend source code
       dockerfile: DOCKERFILE.local         # Dockerfile to use for frontend
     container_name: mm-admin               # Name of the frontend container
     ports:
       - "4300:4201"                       # Map host port 4200 to container port 4200
     volumes:
-      - ../MM:/app:cached                  # Mount local frontend code into container
+      - ../TheMarketMate:/app:cached                  # Mount local frontend code into container
       - /app/.nx
-      - ../MM/certs:/certs:ro 
+      - ../TheMarketMate/certs:/certs:ro 
       - mm_admin_node_modules:/app/node_modules
     environment:
       - NX_DAEMON=false
@@ -64,16 +64,16 @@ services:
 
   backend:
     build:
-      context: ../SpringMate/SpringMate    # Path to backend (Spring Boot) source code
+      context: ../SpringMate    # Path to backend (Spring Boot) source code
       dockerfile: DOCKERFILE.local          # Dockerfile to use for backend
     container_name: local-backend         # Name of the backend container
     ports:
       - "8080:8080"                       # Map host port 8080 to container port 8080
     volumes:
-      - ../SpringMate/SpringMate:/app  # Mount local backend code
+      - ../SpringMate:/app  # Mount local backend code
       - ${HOME}/.m2:/root/.m2         # Mount local Maven repo to cache dependencies
     env_file:
-      - ../SpringMate/SpringMate/src/main/java/com/example/SpringMate/env/.env
+      - ../SpringMate/src/main/java/com/example/SpringMate/env/.env
     environment:
       SPRING_PROFILES_ACTIVE: local
     depends_on:
